@@ -1,4 +1,4 @@
-import { assert, unimplemented } from "@std/assert";
+import { assert, assertEquals, assertGreater, unimplemented } from "@std/assert";
 // Polyfill JS `Iterator` helpers. See https://github.com/tc39/ecma262/pull/3395
 import "es-iterator-helpers/auto";
 
@@ -7,7 +7,7 @@ const spaces = new Map<number, Space>();
 
 /** All models are some concrete implementation of `Model`. */
 export abstract class Model<S extends Space> {
-  public readonly id = (lastModelId += 1);
+  public readonly id: number = (lastModelId += 1);
   protected _time = 0;
   protected _agents: Agent[] = [];
 
@@ -38,12 +38,12 @@ export abstract class Model<S extends Space> {
    * @returns The current time of this model.
    * @remarks All models start from time `0` and is incremented when `step`-ped.
    */
-  get time() {
+  get time(): number {
     return this._time;
   }
 
-  /** Gets the number of agents in this model. This is a number one higher then the highest index in this collection. */
-  get length() {
+  /** @returns The number of agents in this model. This is a number one higher then the highest index in this collection. */
+  get length(): number {
     return this._agents.length;
   }
 
@@ -52,11 +52,11 @@ export abstract class Model<S extends Space> {
     return this._agents[Symbol.iterator]();
   }
 
-  [Symbol.iterator]() {
+  [Symbol.iterator](): Iterator<Agent> {
     return this.agents;
   }
 
-  [Symbol.toPrimitive]() {
+  [Symbol.toPrimitive](): Agent[] {
     // Copy the internal array of agents
     return this._agents.map((x) => x);
   }
@@ -69,12 +69,16 @@ export abstract class Model<S extends Space> {
     return Iterator.from(this._agents).map((agent: Agent) => agent.id);
   }
 
-  /** Add an agent to this model. */
-  push(agent: Agent) {
+  /**
+   * Add an agent to this model.
+   *
+   * @returns The new `length` of this collection of agents.
+   */
+  push(agent: Agent): number {
     return this._agents.push(agent);
   }
 
-  toString() {
+  toString(): string {
     assert(
       spaces.has(this.id),
       "Expected the map of model spaces to include this model!",
@@ -130,6 +134,8 @@ export class GridAgent<D extends GridSize = 2> extends Agent {
 
   constructor(position: Position<D>) {
     super();
+
+    assertGreater(position.length, 0, "Position must have a dimension!");
     this.position = position;
   }
 }
@@ -168,10 +174,22 @@ export class GridSpace<N extends GridSize = 2> implements Space<Point<N>> {
   ) {}
 
   /** @returns An iterator over the agents within distance `r` (inclusive) from the given `position`. */
-  nearby(model: Model<Space<Point<N>>>, position: Point<N>, r: number = 1) {
+  nearby(model: Model<Space<Point<N>>>, position: Point<N>, r: number = 1): Iterable<Agent> {
+    assert(Iterator.from(model.agents).every((agent) => agent instanceof GridAgent));
+    assertGreater(position.length, 0);
+    if (model.length) {
+      const expectedDimensions =
+        (model as unknown as Record<number, GridAgent<N>>)[0].position.length;
+      assertEquals(
+        expectedDimensions,
+        position.length,
+        `Expected a position with ${expectedDimensions} dimension${
+          expectedDimensions === 1 ? "" : ""
+        }!`,
+      );
+    }
     const agents = Iterator.from(model.agents);
     // TODO: Find the agents that neighbor the given position
     throw unimplemented();
-    return agents;
   }
 }
