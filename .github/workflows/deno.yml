@@ -14,8 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       # See: https://github.com/denoland/setup-deno
       - name: Setup Deno
@@ -33,3 +32,19 @@ jobs:
 
       - name: Run Tests
         run: deno task test
+
+  publish:
+    needs: test
+    if: ${{ github.ref == 'main' }}
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write # Used for authentication with JSR.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish to JSR
+        run: npx jsr publish
