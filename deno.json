@@ -10,7 +10,11 @@
   "compilerOptions": {
     "lib": ["ESNext", "DOM.Iterable", "deno.window"]
   },
+  "fmt": {
+    "lineWidth": 100
+  },
   "tasks": {
-    "dev": "deno run --watch main.ts"
+    "dev": "deno run --watch main.ts",
+    "test": "deno test -A tests/**/*.ts"
   }
 }

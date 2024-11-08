@@ -1,24 +1,37 @@
+import { assert, unimplemented } from "@std/assert";
 // Polyfill JS `Iterator` helpers. See https://github.com/tc39/ecma262/pull/3395
 import "es-iterator-helpers/auto";
 
-/** All models are some concrete implementation of `Model`. */
-export abstract class Model {
-  private _time = 0;
-  private _agents: Agent[] = [];
+let lastModelId = -1;
+const spaces = new Map<number, Space>();
 
-  constructor() {
+/** All models are some concrete implementation of `Model`. */
+export abstract class Model<S extends Space> {
+  public readonly id = (lastModelId += 1);
+  protected _time = 0;
+  protected _agents: Agent[] = [];
+
+  constructor(
+    /** The space to model. */ public readonly space: S,
+  ) {
+    spaces.set(this.id, space);
+
     // See https://stackoverflow.com/a/25658975/1363247
     return new Proxy(this, {
       get(target, name) {
         // Try to index the internal list of agents
         const index = typeof name === "string" ? parseInt(name) : Number.NaN;
-        if (index !== Number.NaN) return target._agents[index];
+        if (Number.isNaN(index) !== true) return target._agents[index];
         // Otherwise, defer to the model
         // deno-lint-ignore no-explicit-any
         const model = target as Record<string | symbol, any>;
         return model[name];
       },
     });
+  }
+
+  [Symbol.dispose]() {
+    spaces.delete(this.id);
   }
 
   /**
@@ -39,6 +52,15 @@ export abstract class Model {
     return this._agents[Symbol.iterator]();
   }
 
+  [Symbol.iterator]() {
+    return this.agents;
+  }
+
+  [Symbol.toPrimitive]() {
+    // Copy the internal array of agents
+    return this._agents.map((x) => x);
+  }
+
   /** @returns An iterator over all of the agent IDs in this model. */
   get ids(): Iterator<number> {
     // FIXME: ts: 'Iterator' only refers to a type, but is being used as a value here.
@@ -46,15 +68,32 @@ export abstract class Model {
     // FIXME: https://github.com/bakkot/TypeScript/blob/d8282a419c6f47b364662c50d07efbe5f7a3d334/tests/baselines/reference/builtinIterator.js#L4
     return Iterator.from(this._agents).map((agent: Agent) => agent.id);
   }
-}
-export class StandardModel extends Model {}
-export class MailboxModel extends Model {}
 
-let lastId = -1;
+  /** Add an agent to this model. */
+  push(agent: Agent) {
+    return this._agents.push(agent);
+  }
+
+  toString() {
+    assert(
+      spaces.has(this.id),
+      "Expected the map of model spaces to include this model!",
+    );
+
+    const space = spaces.get(this.id)!.constructor.name;
+    const length = this._agents.length;
+    return `${this.constructor.name}<${space}>: ${length} agent${length === 1 ? "" : "s"}`;
+  }
+}
+
+/** A model which operates in continuous time. */
+export class ContinuiousModel<T extends Space> extends Model<T> {}
+
+let lastAgentId = -1;
 
 /** An agent participating in a simulation. */
 export default abstract class Agent {
-  private _id = lastId += 1;
+  private _id = lastAgentId += 1;
 
   /* Unique identifier of this agent in its simulation. */
   get id(): number {
@@ -64,13 +103,75 @@ export default abstract class Agent {
 
 /** Agent for usage with a `GraphSpace`. */
 export class GraphAgent<V, E> extends Agent {}
-/** Agent for usage with a `GridSpace`. */
-export class GridAgent<D extends number = 2> extends Agent {}
-/** Agent for usage with a `ContinuiousSpace`. */
-export class ContinuiousAgent extends Agent {}
 
-/** */
-export abstract class Space<Pos = number> {
+type Enumerate<N extends number, Acc extends number[] = []> = Acc["length"] extends N ? Acc[number]
+  : Enumerate<N, [...Acc, Acc["length"]]>;
+
+// See https://stackoverflow.com/a/39495173/1363247
+type IntRange<Min extends number, Max extends number> = Exclude<
+  Enumerate<Max>,
+  Enumerate<Min>
+>;
+
+/**
+ * The range of supported grid dimensions, from 1 to 100 (inclusive).
+ *
+ * @see `Point`, `GridAgent`, and `GridSpace`
+ */
+export type GridSize = IntRange<1, 101>;
+
+/** A location in a `GridSpace`. */
+export type Position<D extends GridSize> = FixedLengthArray<number, D>;
+
+/** Agent in a `GridSpace`, positioned in `D`-dimensional space. */
+export class GridAgent<D extends GridSize = 2> extends Agent {
+  /** The location of this agent. */
+  position: Position<D>;
+
+  constructor(position: Position<D>) {
+    super();
+    this.position = position;
+  }
+}
+
+/** A place in which agents operate. Positions are represented by values of `Pos`. */
+// deno-lint-ignore no-explicit-any
+export interface Space<Pos = any> {
   /** @returns An iterator over the agents within distance `r` (inclusive) from the given `position`. */
-  abstract nearby(position: Pos, r: number): Iterator<Agent, number>;
+  nearby(
+    model: Model<Space<Pos>>,
+    position: Pos,
+    r: number,
+  ): Iterable<Agent>;
+}
+
+// See https://github.com/microsoft/TypeScript/issues/26223#issuecomment-410642988
+// deno-lint-ignore no-explicit-any
+interface FixedLengthArray<T extends any, L extends number> extends Array<T> {
+  0: T;
+  length: L;
+}
+
+/** A point in `N`-dimensional space. */
+export type Point<N extends number> = FixedLengthArray<number, N>;
+
+/**
+ * A `N`-dimensional space.
+ *
+ * Optionally, you may decide whether the space will be periodic and by
+ * which metric to measure distance.
+ */
+export class GridSpace<N extends GridSize = 2> implements Space<Point<N>> {
+  constructor(
+    /** Whether the space is periodic. */
+    public readonly periodic: boolean = true,
+  ) {}
+
+  /** @returns An iterator over the agents within distance `r` (inclusive) from the given `position`. */
+  nearby(model: Model<Space<Point<N>>>, position: Point<N>, r: number = 1) {
+    const agents = Iterator.from(model.agents);
+    // TODO: Find the agents that neighbor the given position
+    throw unimplemented();
+    return agents;
+  }
 }
