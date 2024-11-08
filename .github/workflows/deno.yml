@@ -23,7 +23,7 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Check for Code Smells
+      - name: Check Code Formatting
         run: deno fmt --check
         continue-on-error: true
 
