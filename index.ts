@@ -17,8 +17,8 @@ export abstract class Model {
         // deno-lint-ignore no-explicit-any
         const model = target as Record<string | symbol, any>;
         return model[name];
-      }
-    })
+      },
+    });
   }
 
   /**
@@ -71,6 +71,6 @@ export class ContinuiousAgent extends Agent {}
 
 /** */
 export abstract class Space<Pos = number> {
-  /** @returns An iterator over the agents witin distance `r` (inclusive) from the given `position`. */
+  /** @returns An iterator over the agents within distance `r` (inclusive) from the given `position`. */
   abstract nearby(position: Pos, r: number): Iterator<Agent, number>;
 }
