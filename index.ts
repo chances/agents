@@ -1,3 +1,6 @@
+// Polyfill JS `Iterator` helpers. See https://github.com/tc39/ecma262/pull/3395
+import "es-iterator-helpers/auto";
+
 /** All models are some concrete implementation of `Model`. */
 export abstract class Model {
   private _time = 0;
@@ -7,8 +10,13 @@ export abstract class Model {
     // See https://stackoverflow.com/a/25658975/1363247
     return new Proxy(this, {
       get(target, name) {
-        if (name in target) return target[name];
-        return this._agents[name];
+        // Try to index the internal list of agents
+        const index = typeof name === "string" ? parseInt(name) : Number.NaN;
+        if (index !== Number.NaN) return target._agents[index];
+        // Otherwise, defer to the model
+        // deno-lint-ignore no-explicit-any
+        const model = target as Record<string | symbol, any>;
+        return model[name];
       }
     })
   }
@@ -33,7 +41,10 @@ export abstract class Model {
 
   /** @returns An iterator over all of the agent IDs in this model. */
   get ids(): Iterator<number> {
-    return Iterator.from(this._agents).map(agent => agent.id);
+    // FIXME: ts: 'Iterator' only refers to a type, but is being used as a value here.
+    // FIXME: https://github.com/denoland/deno/issues/26783
+    // FIXME: https://github.com/bakkot/TypeScript/blob/d8282a419c6f47b364662c50d07efbe5f7a3d334/tests/baselines/reference/builtinIterator.js#L4
+    return Iterator.from(this._agents).map((agent: Agent) => agent.id);
   }
 }
 export class StandardModel extends Model {}
