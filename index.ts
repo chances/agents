@@ -107,7 +107,7 @@ export default abstract class Agent {
   }
 }
 
-/** Agent for usage with a `GraphSpace`. */
+/** Agent in a `GraphWorld`. */
 export class GraphAgent<V, E> extends Agent {}
 
 type Enumerate<N extends number, Acc extends number[] = []> = Acc["length"] extends N ? Acc[number]
@@ -122,14 +122,14 @@ type IntRange<Min extends number, Max extends number> = Exclude<
 /**
  * The range of supported grid dimensions, from 1 to 100 (inclusive).
  *
- * @see `Point`, `GridAgent`, and `GridSpace`
+ * @see `Point`, `GridAgent`, and `GridWorld`
  */
 export type GridSize = IntRange<1, 101>;
 
-/** A location in a `GridSpace`. */
+/** A location in a `GridWorld`. */
 export type Position<D extends GridSize> = FixedLengthArray<number, D>;
 
-/** Agent in a `GridSpace`, positioned in `D`-dimensional space. */
+/** Agent in a `GridWorld`, positioned in `D`-dimensional space. */
 export class GridAgent<D extends GridSize = 2> extends Agent {
   /** The location of this agent. */
   position: Position<D>;
