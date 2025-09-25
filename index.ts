@@ -3,18 +3,18 @@ import { assert, assertEquals, assertGreater, unimplemented } from "@std/assert"
 import "es-iterator-helpers/auto";
 
 let lastModelId = -1;
-const spaces = new Map<number, Space>();
+const worlds = new Map<number, World>();
 
 /** All models are some concrete implementation of `Model`. */
-export abstract class Model<S extends Space> {
+export abstract class Model<W extends World> {
   public readonly id: number = (lastModelId += 1);
   protected _time = 0;
   protected _agents: Agent[] = [];
 
   constructor(
-    /** The space to model. */ public readonly space: S,
+    /** The world to model. */ public readonly world: W,
   ) {
-    spaces.set(this.id, space);
+    worlds.set(this.id, world);
 
     // See https://stackoverflow.com/a/25658975/1363247
     return new Proxy(this, {
@@ -31,7 +31,7 @@ export abstract class Model<S extends Space> {
   }
 
   [Symbol.dispose]() {
-    spaces.delete(this.id);
+    worlds.delete(this.id);
   }
 
   /**
@@ -80,18 +80,18 @@ export abstract class Model<S extends Space> {
 
   toString(): string {
     assert(
-      spaces.has(this.id),
-      "Expected the map of model spaces to include this model!",
+      worlds.has(this.id),
+      "Expected the map of model worlds to include this model!",
     );
 
-    const space = spaces.get(this.id)!.constructor.name;
+    const space = worlds.get(this.id)!.constructor.name;
     const length = this._agents.length;
     return `${this.constructor.name}<${space}>: ${length} agent${length === 1 ? "" : "s"}`;
   }
 }
 
 /** A model which operates in continuous time. */
-export class ContinuiousModel<T extends Space> extends Model<T> {}
+export class ContinuiousModel<W extends World> extends Model<W> {}
 
 let lastAgentId = -1;
 
@@ -142,10 +142,10 @@ export class GridAgent<D extends GridSize = 2> extends Agent {
 
 /** A place in which agents operate. Positions are represented by values of `Pos`. */
 // deno-lint-ignore no-explicit-any
-export interface Space<Pos = any> {
+export interface World<Pos = any> {
   /** @returns An iterator over the agents within distance `r` (inclusive) from the given `position`. */
   nearby(
-    model: Model<Space<Pos>>,
+    model: Model<World<Pos>>,
     position: Pos,
     r: number,
   ): Iterable<Agent>;
@@ -162,19 +162,19 @@ interface FixedLengthArray<T extends any, L extends number> extends Array<T> {
 export type Point<N extends number> = FixedLengthArray<number, N>;
 
 /**
- * A `N`-dimensional space.
+ * A `N`-dimensional world.
  *
- * Optionally, you may decide whether the space will be periodic and by
+ * Optionally, you may decide whether the area is periodic and by
  * which metric to measure distance.
  */
-export class GridSpace<N extends GridSize = 2> implements Space<Point<N>> {
+export class GridWorld<N extends GridSize = 2> implements World<Point<N>> {
   constructor(
-    /** Whether the space is periodic. */
+    /** Whether the world's area is periodic. */
     public readonly periodic: boolean = true,
   ) {}
 
   /** @returns An iterator over the agents within distance `r` (inclusive) from the given `position`. */
-  nearby(model: Model<Space<Point<N>>>, position: Point<N>, r: number = 1): Iterable<Agent> {
+  nearby(model: Model<World<Point<N>>>, position: Point<N>, r: number = 1): Iterable<Agent> {
     assert(Iterator.from(model.agents).every((agent) => agent instanceof GridAgent));
     assertGreater(position.length, 0);
     if (model.length) {
