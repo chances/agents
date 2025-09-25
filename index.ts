@@ -56,7 +56,9 @@ export abstract class Model<W extends World> {
     return this.agents;
   }
 
-  [Symbol.toPrimitive](): Agent[] {
+  [Symbol.toPrimitive](hint: "number" | "string" | "default"): number | string | Agent[] {
+    if (hint === "number") return this.length;
+    if (hint === "string") return this.toString();
     // Copy the internal array of agents
     return this._agents.map((x) => x);
   }
