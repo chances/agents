@@ -4,7 +4,10 @@ import Agent, { GridAgent, GridWorld, Model } from "../index.ts";
 
 class LonelyPlanet extends Model<GridWorld> {
   constructor() {
-    super(new GridWorld());
+    super(new GridWorld(), {
+      // No-op
+      modelStep: (_model) => null
+    });
   }
 }
 
@@ -17,4 +20,8 @@ Deno.test("Lonely agents in an empty world", () => {
   assertInstanceOf(agent, Agent);
   assertEquals(world.push(agent), 1);
   assertEquals(world.toString(), "LonelyPlanet<GridWorld>: 1 agent");
+
+  assertEquals(world.time, 0);
+  world.step();
+  assertEquals(world.time, 1);
 });

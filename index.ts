@@ -5,15 +5,43 @@ import "es-iterator-helpers/auto";
 let lastModelId = -1;
 const worlds = new Map<number, World>();
 
+type AgentStepFn<W extends World, A extends Agent> = (agent: A, model: Model<W, A>) => void;
+type ModelStepFn<W extends World, A extends Agent> = (model: Model<W, A>) => void;
+
+interface ModelSteps<W extends World, A extends Agent = Agent> {
+  agentStep?: AgentStepFn<W, A>;
+  modelStep?: ModelStepFn<W, A>;
+  agentsFirst?: boolean;
+}
+
 /** All models are some concrete implementation of `Model`. */
-export abstract class Model<W extends World> {
+export abstract class Model<W extends World, A extends Agent = Agent> {
+  private readonly ThisModel = this;
+
   public readonly id: number = (lastModelId += 1);
   protected _time = 0;
-  protected _agents: Agent[] = [];
+  protected _agents: A[] = [];
+  private readonly agentStep: AgentStepFn<W, A> | null;
+  private readonly modelStep: ModelStepFn<W, A> | null;
+  private readonly agentsFirst: boolean;
 
+  /**
+   * Creates a new agent-based model.
+   * @param {W} world The world to model.
+   * @param {AgentStepFn<Model<W, A>, A>} [agentStep]
+   * @param {ModelStepFn<Model<W, A>>} [modelStep]
+   * @param {boolean} agentsFirst Whether to schedule agents first and then call `modelStep`. Ignored if no
+   * `agentStep` is given.
+   */
   constructor(
-    /** The world to model. */ public readonly world: W,
+    public readonly world: W,
+    steps: ModelSteps<W, A> | Omit<ModelSteps<W, A>, "agentStep"> | Omit<ModelSteps<W, A>, "modelStep"> = { agentsFirst: true },
   ) {
+    this.agentStep = (steps as ModelSteps<W, A>).agentStep || null;
+    this.modelStep = (steps as ModelSteps<W, A>).modelStep || null;
+    this.agentsFirst = steps.agentsFirst === undefined ? true : steps.agentsFirst;
+    assert(this.agentStep || this.modelStep, "At least one of `agentStep` or `modelStep` must be given.");
+
     worlds.set(this.id, world);
 
     // See https://stackoverflow.com/a/25658975/1363247
@@ -48,11 +76,11 @@ export abstract class Model<W extends World> {
   }
 
   /** @returns An iterator over all of the agents in this model. */
-  get agents(): Iterator<Agent> {
+  get agents(): Iterator<A> {
     return this._agents[Symbol.iterator]();
   }
 
-  [Symbol.iterator](): Iterator<Agent> {
+  [Symbol.iterator](): Iterator<A> {
     return this.agents;
   }
 
@@ -65,9 +93,6 @@ export abstract class Model<W extends World> {
 
   /** @returns An iterator over all of the agent IDs in this model. */
   get ids(): Iterator<number> {
-    // FIXME: ts: 'Iterator' only refers to a type, but is being used as a value here.
-    // FIXME: https://github.com/denoland/deno/issues/26783
-    // FIXME: https://github.com/bakkot/TypeScript/blob/d8282a419c6f47b364662c50d07efbe5f7a3d334/tests/baselines/reference/builtinIterator.js#L4
     return Iterator.from(this._agents).map((agent: Agent) => agent.id);
   }
 
@@ -76,8 +101,31 @@ export abstract class Model<W extends World> {
    *
    * @returns The new `length` of this collection of agents.
    */
-  push(agent: Agent): number {
+  push(agent: A): number {
     return this._agents.push(agent);
+  }
+
+  /** @returns Whether this world includes the given `agent`. */
+  includes(agent: A): boolean {
+    return this._agents.includes(agent);
+  }
+
+  /** Remove the given `agent` from this model. */
+  remove(agent: A) {
+    assert(this.includes(agent), "This model does not include the given agent.");
+    this._agents.splice(this._agents.indexOf(agent), 1);
+  }
+
+  step() {
+    this._time += 1;
+
+    if (this.agentsFirst && this.agentStep) {
+      this._agents.forEach(a => this.agentStep!(a, this));
+      this.modelStep && this.modelStep(this);
+    } else {
+      this.modelStep && this.modelStep(this);
+      if (this.agentStep) this._agents.forEach(a => this.agentStep!(a, this));
+    }
   }
 
   toString(): string {
@@ -93,7 +141,7 @@ export abstract class Model<W extends World> {
 }
 
 /** A model which operates in continuous time. */
-export class ContinuiousModel<W extends World> extends Model<W> {}
+export class ContinuousModel<W extends World> extends Model<W> { }
 
 let lastAgentId = -1;
 
@@ -108,7 +156,7 @@ export default abstract class Agent {
 }
 
 /** Agent in a `GraphWorld`. */
-export class GraphAgent<V, E> extends Agent {}
+export class GraphAgent<V, E> extends Agent { }
 
 type Enumerate<N extends number, Acc extends number[] = []> = Acc["length"] extends N ? Acc[number]
   : Enumerate<N, [...Acc, Acc["length"]]>;
@@ -143,8 +191,7 @@ export class GridAgent<D extends GridSize = 2> extends Agent {
 }
 
 /** A place in which agents operate. Positions are represented by values of `Pos`. */
-// deno-lint-ignore no-explicit-any
-export interface World<Pos = any> {
+export interface World<Pos = unknown> {
   /** @returns An iterator over the agents within distance `r` (inclusive) from the given `position`. */
   nearby(
     model: Model<World<Pos>>,
@@ -154,8 +201,7 @@ export interface World<Pos = any> {
 }
 
 // See https://github.com/microsoft/TypeScript/issues/26223#issuecomment-410642988
-// deno-lint-ignore no-explicit-any
-interface FixedLengthArray<T extends any, L extends number> extends Array<T> {
+interface FixedLengthArray<T, L extends number> extends Array<T> {
   0: T;
   length: L;
 }
@@ -173,7 +219,7 @@ export class GridWorld<N extends GridSize = 2> implements World<Point<N>> {
   constructor(
     /** Whether the world's area is periodic. */
     public readonly periodic: boolean = true,
-  ) {}
+  ) { }
 
   /** @returns An iterator over the agents within distance `r` (inclusive) from the given `position`. */
   nearby(model: Model<World<Point<N>>>, position: Point<N>, r: number = 1): Iterable<Agent> {
@@ -185,13 +231,11 @@ export class GridWorld<N extends GridSize = 2> implements World<Point<N>> {
       assertEquals(
         expectedDimensions,
         position.length,
-        `Expected a position with ${expectedDimensions} dimension${
-          expectedDimensions === 1 ? "" : ""
+        `Expected a position with ${expectedDimensions} dimension${expectedDimensions === 1 ? "" : "s"
         }!`,
       );
     }
-    const agents = Iterator.from(model.agents);
-    // TODO: Find the agents that neighbor the given position
-    throw unimplemented();
+    return Iterator.from(model.agents)
+      .filter(agent => (agent as GridAgent).position.every((a, i) => Math.abs(position[i] - a) <= r));
   }
 }
