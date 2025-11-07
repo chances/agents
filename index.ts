@@ -27,10 +27,10 @@ export abstract class Model<W extends World, A extends Agent = Agent> {
 
   /**
    * Creates a new agent-based model.
-   * @param {W} world The world to model.
-   * @param {AgentStepFn<Model<W, A>, A>} [agentStep]
-   * @param {ModelStepFn<Model<W, A>>} [modelStep]
-   * @param {boolean} agentsFirst Whether to schedule agents first and then call `modelStep`. Ignored if no
+   * @param {W} [world] The world to model.
+   * @param {AgentStepFn<Model<W, A>, A>} [steps.agentStep]
+   * @param {ModelStepFn<Model<W, A>>} [steps.modelStep]
+   * @param {boolean} [steps.agentsFirst] Whether to schedule agents first and then call `modelStep`. Ignored if no
    * `agentStep` is given.
    */
   constructor(
